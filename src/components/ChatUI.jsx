@@ -1,51 +1,83 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Trash2, Sparkles, User } from "lucide-react";
-
-// Firebase placeholder configuration
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id",
-};
-
-// Simulated API calls (replace with actual Firebase/API calls)
-const simulateAPICall = async (model, message, conciseMode) => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  const responses = {
-    kimi: conciseMode
-      ? "I'm Grok, xAI's conversational AI. I excel at real-time information and witty responses."
-      : "I'm Grok, an AI assistant created by xAI. I'm designed to be helpful, accurate, and have a bit of personality. I can assist with a wide range of tasks. How can I help you today?",
-    gpt35: conciseMode
-      ? "I'm ChatGPT, OpenAI's efficient assistant. I'm fast and helpful for everyday tasks."
-      : "I'm ChatGPT, a conversational AI by OpenAI. I'm designed to provide helpful, accurate responses for a wide range of tasks including conversation, writing assistance, and problem-solving. What would you like to know?",
-  };
-
-  return responses[model];
-};
+import { Send, Trash2, Sparkles, User, ChevronDown, Copy, Edit2, Check, X } from "lucide-react";
 
 const ChatUI = () => {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: "bot",
-      text: "I don't have a personal name like a human does, but you can call me Assistant! How can I help you today?",
-      model: "kimi",
-    },
-  ]);
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem("chatMessages");
+    return saved
+      ? JSON.parse(saved)
+      : [
+          {
+            id: 1,
+            type: "bot",
+            text: "Hi, I'm an AI assistant! How can I help you today?",
+            model: "haiku",
+          },
+        ];
+  });
+
   const [inputValue, setInputValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState("kimi");
+  const [selectedModel, setSelectedModel] = useState("haiku");
   const [conciseMode, setConciseMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const modelConfig = {
-    kimi: { name: "Grok", icon: "⚡", color: "purple" },
-    gpt35: { name: "ChatGPT", icon: "🤖", color: "green" },
+    haiku: {
+      name: "Haiku",
+      icon: "⚡",
+      color: "purple",
+      apiModel: "anthropic/claude-3.5-haiku",
+    },
+    gpt35: {
+      name: "ChatGPT",
+      icon: "🚀",
+      color: "green",
+      apiModel: "openai/gpt-3.5-turbo",
+    },
+    gemini: {
+      name: "Gemini",
+      icon: "🌙",
+      color: "blue",
+      apiModel: "google/gemini-3.1-flash-lite-preview",
+    },
+
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Ensure intro message appears if no saved history
+  useEffect(() => {
+    const saved = localStorage.getItem("chatMessages");
+    if (!saved || JSON.parse(saved).length === 0) {
+      const introMessage = {
+        id: 1,
+        type: "bot",
+        text: "Hi, I'm an AI assistant! How can I help you today?",
+        model: "haiku",
+      };
+      setMessages([introMessage]);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("chatMessages", JSON.stringify(messages));
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,77 +87,206 @@ const ChatUI = () => {
     scrollToBottom();
   }, [messages]);
 
+  const formatMessagesForAPI = (msgs, limit = 30) => {
+    return msgs.slice(-limit).map(
+      (msg) =>
+        msg.type === "user"
+          ? { role: "user", content: msg.text }
+          : { role: "assistant", content: msg.text }
+    );
+  };
+
+  const handleCopyMessage = async (text, messageId) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleEditMessage = (message) => {
+    setEditingMessageId(message.id);
+    setEditText(message.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!editText.trim() || isLoading) return;
+
+    const editIndex = messages.findIndex(msg => msg.id === editingMessageId);
+    if (editIndex === -1) return;
+
+    const messagesUpToEdit = messages.slice(0, editIndex);
+    
+    const updatedMessage = {
+      ...messages[editIndex],
+      text: editText,
+    };
+
+    setMessages([...messagesUpToEdit, updatedMessage]);
+    setEditingMessageId(null);
+    setEditText("");
+    setIsLoading(true);
+
+    try {
+      const model = modelConfig[selectedModel].apiModel;
+      const messageHistory = formatMessagesForAPI(messagesUpToEdit, 30);
+
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          userMessage: editText,
+          conciseMode,
+          messageHistory,
+        }),
+      });
+
+      if (!res.ok) throw new Error("API error " + res.status);
+
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content || "No reply";
+
+      const botMessage = {
+        id: Date.now() + 1,
+        type: "bot",
+        text: reply,
+        model: selectedModel,
+      };
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: "bot",
+        text: "Sorry, there was an error processing your request.",
+        model: selectedModel,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
+
+    const userMessageText = inputValue;
+    setInputValue("");
+    setIsLoading(true);
 
     const userMessage = {
       id: Date.now(),
       type: "user",
-      text: inputValue,
+      text: userMessageText,
       model: selectedModel,
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
 
     try {
-  const userMessageText = inputValue.trim();
+      const model = modelConfig[selectedModel].apiModel;
+      const messageHistory = formatMessagesForAPI(messages, 30);
 
-  // model selector
-  const model = selectedModel === 'gpt35'
-              ? 'openai/gpt-3.5-turbo'
-              : 'x-ai/grok-3-mini';
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          userMessage: userMessageText,
+          conciseMode,
+          messageHistory,
+        }),
+      });
 
-  
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
-      'HTTP-Referer': window.location.href,   // OpenRouter requires this
-      'X-Title': 'Concise Chat',              // optional, app name
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: conciseMode ? 'You are a helpful assistant. Keep your responses concise and to the point, typically 3-5 sentences.' : 'You are a helpful assistant.' },
-        { role: 'user', content: userMessageText },
-      ],
-      temperature: 0.7,
-    }),
-  });
+      if (!res.ok) throw new Error("API error " + res.status);
 
-  if (!res.ok) throw new Error('API error ' + res.status);
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content || "No reply";
 
-  const data = await res.json();
-  const reply = data.choices?.[0]?.message?.content || 'No reply';
-
-  const botMessage = {
-    id: Date.now() + 1,
-    type: 'bot',
-    text: reply,
-    model: selectedModel,
-  };
-  setMessages((prev) => [...prev, botMessage]);
-} finally {
+      const botMessage = {
+        id: Date.now() + 1,
+        type: "bot",
+        text: reply,
+        model: selectedModel,
+      };
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: "bot",
+        text: "Sorry, there was an error processing your request.",
+        model: selectedModel,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
     }
   };
 
   const handleClearChat = () => {
-    setMessages([]);
+    const introMessage = {
+      id: Date.now(),
+      type: "bot",
+      text: "Hi, I'm an AI assistant! How can I help you today?",
+      model: "haiku",
+    };
+
+    setMessages([introMessage]);
+    localStorage.setItem("chatMessages", JSON.stringify([introMessage]));
   };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (editingMessageId) {
+        handleSubmitEdit();
+      } else {
+        handleSend();
+      }
     }
   };
 
+  const getModelColor = (model) => {
+    const colors = {
+      purple: "bg-purple-100 text-purple-700 border-purple-200",
+      green: "bg-green-100 text-green-700 border-green-200",
+      blue: "bg-blue-100 text-blue-700 border-blue-200",
+    };
+    return colors[modelConfig[model].color];
+  };
+
+  // const getModelBadgeColor = (model) => {
+  //   const colors = {
+  //     purple: "text-purple-600 bg-purple-50",
+  //     green: "text-green-600 bg-green-50",
+  //     blue: "text-blue-600 bg-blue-50",
+  //   };
+  //   return colors[modelConfig[model].color];
+  // };
+  const getModelBadgeColor = (model) => {
+  const colors = {
+    purple: "text-purple-600 bg-purple-50",
+    green: "text-green-600 bg-green-50",
+    blue: "text-blue-600 bg-blue-50",
+  };
+  const config = modelConfig[model] || modelConfig[Object.keys(modelConfig)[0]];
+  return colors[config.color];
+};
+
+  // Find the last user message (no longer needed since we allow editing any user message)
+  // const lastUserMessageId = [...messages].reverse().find(msg => msg.type === 'user')?.id;
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
+    <div className="flex items-center text-sm sm:text-m justify-center min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
       <div
         className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col"
         style={{ height: "90vh" }}
@@ -138,7 +299,7 @@ const ChatUI = () => {
                 <Sparkles className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">AI Chat</h1>
+                <h1 className="text-2xl font-bold text-gray-900">CoThink</h1>
                 <p className="text-sm text-gray-500">
                   {messages.length} messages
                 </p>
@@ -146,40 +307,61 @@ const ChatUI = () => {
             </div>
             <button
               onClick={handleClearChat}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+              className="flex items-center ml-7 text-sm gap-2 px-4 py-1 sm:py-2 text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Clear Chat
-            </button>
+            </button>   
           </div>
 
-          {/* Model Selection and Concise Mode */}
+          {/* Model Selection Dropdown & Concise Mode */}
           <div className="flex items-center justify-between">
-            <div className="flex gap-2">
+            {/* Model Dropdown */}
+            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => setSelectedModel("kimi")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  selectedModel === "kimi"
-                    ? "bg-purple-100 text-purple-700"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all border ${getModelColor(
+                  selectedModel
+                )}`}
               >
-                ⚡ Grok
+                <span>{modelConfig[selectedModel].icon}</span>
+                <span>{modelConfig[selectedModel].name}</span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    isDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
               </button>
-              <button
-                onClick={() => setSelectedModel("gpt35")}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  selectedModel === "gpt35"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                🤖 ChatGPT
-              </button>
+
+              {isDropdownOpen && (
+                <div className="absolute top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                  {Object.entries(modelConfig).map(([key, config]) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setSelectedModel(key);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors ${
+                        selectedModel === key ? "bg-gray-50" : ""
+                      }`}
+                    >
+                      <span className="text-lg">{config.icon}</span>
+                      <span className="font-medium text-gray-700">
+                        {config.name}
+                      </span>
+                      {selectedModel === key && (
+                        <span className="ml-auto text-purple-600">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
+            {/* Concise Mode Toggle */}
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-xs ml-9 sm:text-sm font-medium text-gray-700">
                 Concise Mode
               </span>
               <button
@@ -198,7 +380,7 @@ const ChatUI = () => {
           </div>
         </div>
 
-        {/* Messages Area */}
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.map((message) => (
             <div
@@ -221,31 +403,104 @@ const ChatUI = () => {
               <div
                 className={`flex flex-col ${
                   message.type === "user" ? "items-end" : "items-start"
-                } max-w-[70%]`}
+                } w-full group`}
               >
-                <div
-                  className={`px-4 py-3 rounded-2xl ${
-                    message.type === "user"
-                      ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed">{message.text}</p>
-                </div>
-                {message.type === "bot" && (
-                  <span
-                    className={`text-xs mt-1 px-2 py-1 rounded-full ${
-                      message.model === "kimi"
-                        ? "text-purple-600 bg-purple-50"
-                        : "text-green-600 bg-green-50"
-                    }`}
-                  >
-                    {message.model === "kimi" ? "Grok" : "ChatGPT"}
-                  </span>
+                {editingMessageId === message.id ? (
+                  // Edit Mode - 60% Width
+                  <div className="w-[60%]">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      className="w-full px-4 py-3 bg-gray-50 border border-purple-300 rounded-2xl resize-none outline-none text-gray-800 focus:border-purple-500"
+                      rows="3"
+                      autoFocus
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleSubmitEdit}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                      >
+                        <Check className="w-3 h-3" />
+                        Submit
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                      >
+                        <X className="w-3 h-3" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Normal Message Display
+                  <div className={`${message.type === "user" ? "max-w-[70%]" : "max-w-[70%]"} w-auto`}>
+                    <div
+                      className={`px-4 py-3 rounded-2xl ${
+                        message.type === "user"
+                          ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {message.text}
+                      </p>
+                    </div>
+                    
+                    {/* Action buttons and model badge in same row for bot, separate for user */}
+                    {message.type === "bot" ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${getModelBadgeColor(
+                            message.model
+                          )}`}
+                        >
+                          {modelConfig[message.model]?.name || "AI"}
+                        </span>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleCopyMessage(message.text, message.id)}
+                            className="p-1.5 bg-white rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 transition-all border border-gray-200"
+                            title="Copy message"
+                          >
+                            {copiedMessageId === message.id ? (
+                              <Check className="w-3 h-3 text-green-600" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-gray-600" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // User message buttons - right aligned
+                      <div className="flex gap-1 mt-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleCopyMessage(message.text, message.id)}
+                          className="p-1.5 bg-white rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 transition-all border border-gray-200"
+                          title="Copy message"
+                        >
+                          {copiedMessageId === message.id ? (
+                            <Check className="w-3 h-3 text-green-600" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-gray-600" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEditMessage(message)}
+                          className="p-1.5 bg-white rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 transition-all border border-gray-200"
+                          title="Edit and resubmit"
+                        >
+                          <Edit2 className="w-3 h-3 text-gray-600" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
           ))}
+
           {isLoading && (
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
@@ -272,7 +527,7 @@ const ChatUI = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
+        {/* Input */}
         <div className="border-t border-gray-200 p-6 bg-white">
           <div className="flex gap-3 items-end">
             <div className="flex-1 bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-purple-500 transition-colors">
