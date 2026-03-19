@@ -29,7 +29,7 @@ const ChatUI = () => {
 
   const modelConfig = {
     haiku: {
-      name: "Haiku",
+      name: "Claude",
       icon: "⚡",
       color: "purple",
       apiModel: "anthropic/claude-3.5-haiku",
