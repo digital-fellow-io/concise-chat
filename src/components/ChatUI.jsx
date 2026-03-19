@@ -1,5 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Trash2, Sparkles, User, ChevronDown, Copy, Edit2, Check, X } from "lucide-react";
+import {
+  Send,
+  Trash2,
+  Sparkles,
+  User,
+  ChevronDown,
+  Copy,
+  Edit2,
+  Check,
+  X,
+} from "lucide-react";
 
 const ChatUI = () => {
   const [messages, setMessages] = useState(() => {
@@ -10,7 +20,7 @@ const ChatUI = () => {
           {
             id: 1,
             type: "bot",
-            text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
+            text: "You're in a chat with three AI models. Each can provide their own take, and can see what the others said—so you may get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
             model: "haiku",
           },
         ];
@@ -26,6 +36,10 @@ const ChatUI = () => {
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const dropdownRef = useRef(null);
+  const [inputHeight, setInputHeight] = useState(96);
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragStartHeightRef = useRef(0);
 
   const modelConfig = {
     haiku: {
@@ -46,7 +60,6 @@ const ChatUI = () => {
       color: "blue",
       apiModel: "google/gemini-3.1-flash-lite-preview",
     },
-
   };
 
   // Close dropdown when clicking outside
@@ -68,7 +81,7 @@ const ChatUI = () => {
       const introMessage = {
         id: 1,
         type: "bot",
-        text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
+        text: "You're in a chat with three AI models. Each can provide their own take, and can see what the others said—so you may get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
         model: "haiku",
       };
       setMessages([introMessage]);
@@ -88,12 +101,13 @@ const ChatUI = () => {
   }, [messages]);
 
   const formatMessagesForAPI = (msgs, limit = 30) => {
-    return msgs.slice(-limit).map(
-      (msg) =>
+    return msgs
+      .slice(-limit)
+      .map((msg) =>
         msg.type === "user"
           ? { role: "user", content: msg.text }
-          : { role: "assistant", content: msg.text }
-    );
+          : { role: "assistant", content: msg.text },
+      );
   };
 
   const handleCopyMessage = async (text, messageId) => {
@@ -102,7 +116,7 @@ const ChatUI = () => {
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      console.error("Failed to copy:", err);
     }
   };
 
@@ -119,11 +133,11 @@ const ChatUI = () => {
   const handleSubmitEdit = async () => {
     if (!editText.trim() || isLoading) return;
 
-    const editIndex = messages.findIndex(msg => msg.id === editingMessageId);
+    const editIndex = messages.findIndex((msg) => msg.id === editingMessageId);
     if (editIndex === -1) return;
 
     const messagesUpToEdit = messages.slice(0, editIndex);
-    
+
     const updatedMessage = {
       ...messages[editIndex],
       text: editText,
@@ -236,7 +250,7 @@ const ChatUI = () => {
     const introMessage = {
       id: Date.now(),
       type: "bot",
-      text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
+      text: "You're in a chat with three AI models. Each can provide their own take, and can see what the others said—so you may get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
       model: "haiku",
     };
 
@@ -253,6 +267,35 @@ const ChatUI = () => {
         handleSend();
       }
     }
+  };
+
+  const handleDragStart = (e) => {
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    dragStartHeightRef.current = inputHeight;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return;
+      const delta = dragStartYRef.current - e.clientY; // drag up = bigger
+      const newHeight = Math.min(
+        400,
+        Math.max(64, dragStartHeightRef.current + delta),
+      );
+      setInputHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   const getModelColor = (model) => {
@@ -273,14 +316,15 @@ const ChatUI = () => {
   //   return colors[modelConfig[model].color];
   // };
   const getModelBadgeColor = (model) => {
-  const colors = {
-    purple: "text-purple-600 bg-purple-50",
-    green: "text-green-600 bg-green-50",
-    blue: "text-blue-600 bg-blue-50",
+    const colors = {
+      purple: "text-purple-600 bg-purple-50",
+      green: "text-green-600 bg-green-50",
+      blue: "text-blue-600 bg-blue-50",
+    };
+    const config =
+      modelConfig[model] || modelConfig[Object.keys(modelConfig)[0]];
+    return colors[config.color];
   };
-  const config = modelConfig[model] || modelConfig[Object.keys(modelConfig)[0]];
-  return colors[config.color];
-};
 
   // Find the last user message (no longer needed since we allow editing any user message)
   // const lastUserMessageId = [...messages].reverse().find(msg => msg.type === 'user')?.id;
@@ -311,7 +355,7 @@ const ChatUI = () => {
             >
               <Trash2 className="w-4 h-4" />
               Clear Chat
-            </button>   
+            </button>
           </div>
 
           {/* Model Selection Dropdown & Concise Mode */}
@@ -321,7 +365,7 @@ const ChatUI = () => {
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all border ${getModelColor(
-                  selectedModel
+                  selectedModel,
                 )}`}
               >
                 <span>{modelConfig[selectedModel].icon}</span>
@@ -435,7 +479,9 @@ const ChatUI = () => {
                   </div>
                 ) : (
                   // Normal Message Display
-                  <div className={`${message.type === "user" ? "max-w-[70%]" : "max-w-[70%]"} w-auto`}>
+                  <div
+                    className={`${message.type === "user" ? "max-w-[70%]" : "max-w-[70%]"} w-auto`}
+                  >
                     <div
                       className={`px-4 py-3 rounded-2xl ${
                         message.type === "user"
@@ -447,20 +493,22 @@ const ChatUI = () => {
                         {message.text}
                       </p>
                     </div>
-                    
+
                     {/* Action buttons and model badge in same row for bot, separate for user */}
                     {message.type === "bot" ? (
                       <div className="flex items-center gap-2 mt-2">
                         <span
                           className={`text-xs px-2 py-1 rounded-full ${getModelBadgeColor(
-                            message.model
+                            message.model,
                           )}`}
                         >
                           {modelConfig[message.model]?.name || "AI"}
                         </span>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => handleCopyMessage(message.text, message.id)}
+                            onClick={() =>
+                              handleCopyMessage(message.text, message.id)
+                            }
                             className="p-1.5 bg-white rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 transition-all border border-gray-200"
                             title="Copy message"
                           >
@@ -476,7 +524,9 @@ const ChatUI = () => {
                       // User message buttons - right aligned
                       <div className="flex gap-1 mt-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleCopyMessage(message.text, message.id)}
+                          onClick={() =>
+                            handleCopyMessage(message.text, message.id)
+                          }
                           className="p-1.5 bg-white rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 transition-all border border-gray-200"
                           title="Copy message"
                         >
@@ -528,8 +578,17 @@ const ChatUI = () => {
         </div>
 
         {/* Input */}
-        <div className="border-t border-gray-200 p-6 bg-white">
-          <div className="flex gap-3 items-end">
+        <div className="border-t border-gray-200 bg-white">
+          {/* Drag handle */}
+          <div
+            onMouseDown={handleDragStart}
+            className="flex items-center justify-center h-3 cursor-ns-resize hover:bg-gray-100 transition-colors"
+            title="Drag to resize"
+          >
+            <div className="w-8 h-1 rounded-full bg-gray-300" />
+          </div>
+
+          <div className="p-6 pt-2 flex gap-3 items-end">
             <div className="flex-1 bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-purple-500 transition-colors">
               <textarea
                 value={inputValue}
@@ -537,7 +596,7 @@ const ChatUI = () => {
                 onKeyPress={handleKeyPress}
                 placeholder="Ask me anything..."
                 className="w-full px-4 py-3 bg-transparent resize-none outline-none text-gray-800 placeholder-gray-400"
-                rows="2"
+                style={{ height: `${inputHeight}px` }}
                 disabled={isLoading}
               />
             </div>
