@@ -10,7 +10,7 @@ const ChatUI = () => {
           {
             id: 1,
             type: "bot",
-            text: "Hi, I'm an AI assistant! How can I help you today?",
+            text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
             model: "haiku",
           },
         ];
@@ -68,7 +68,7 @@ const ChatUI = () => {
       const introMessage = {
         id: 1,
         type: "bot",
-        text: "Hi, I'm an AI assistant! How can I help you today?",
+        text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
         model: "haiku",
       };
       setMessages([introMessage]);
@@ -236,7 +236,7 @@ const ChatUI = () => {
     const introMessage = {
       id: Date.now(),
       type: "bot",
-      text: "Hi, I'm an AI assistant! How can I help you today?",
+      text: "You're chatting with three different AI models at once. Each can jump in with their own take, and they can see what the others said—so you might get different angles, agreements, or friendly disagreements. Feel free to ask follow-ups or request a specific model's perspective. What's on your mind?",
       model: "haiku",
     };
 
