@@ -271,14 +271,17 @@ const ChatUI = () => {
 
   const handleDragStart = (e) => {
     isDraggingRef.current = true;
-    dragStartYRef.current = e.clientY;
+    // Support both mouse and touch events
+    const startY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartYRef.current = startY;
     dragStartHeightRef.current = inputHeight;
     document.body.style.cursor = "ns-resize";
     document.body.style.userSelect = "none";
 
-    const handleMouseMove = (e) => {
+    const handleMove = (e) => {
       if (!isDraggingRef.current) return;
-      const delta = dragStartYRef.current - e.clientY; // drag up = bigger
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const delta = dragStartYRef.current - clientY;
       const newHeight = Math.min(
         400,
         Math.max(64, dragStartHeightRef.current + delta),
@@ -286,16 +289,21 @@ const ChatUI = () => {
       setInputHeight(newHeight);
     };
 
-    const handleMouseUp = () => {
+    const handleUp = () => {
       isDraggingRef.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleUp);
+      document.removeEventListener("touchmove", handleMove);
+      document.removeEventListener("touchend", handleUp);
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleUp);
+    // Add touch equivalents
+    document.addEventListener("touchmove", handleMove, { passive: false });
+    document.addEventListener("touchend", handleUp);
   };
 
   const getModelColor = (model) => {
@@ -582,7 +590,8 @@ const ChatUI = () => {
           {/* Drag handle */}
           <div
             onMouseDown={handleDragStart}
-            className="flex items-center justify-center h-3 cursor-ns-resize hover:bg-gray-100 transition-colors"
+            onTouchStart={handleDragStart}
+            className="flex items-center justify-center h-3 cursor-ns-resize hover:bg-gray-100 transition-colors touch-none"
             title="Drag to resize"
           >
             <div className="w-8 h-1 rounded-full bg-gray-300" />
