@@ -459,7 +459,7 @@ const ChatUI = () => {
               >
                 {editingMessageId === message.id ? (
                   // Edit Mode - 60% Width
-                  <div className="w-[60%]">
+                  <div className="w-[80%]">
                     <textarea
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
@@ -487,9 +487,7 @@ const ChatUI = () => {
                   </div>
                 ) : (
                   // Normal Message Display
-                  <div
-                    className="max-w-[85%] sm:max-w-[70%] w-auto"
-                  >
+                  <div className="max-w-[85%] sm:max-w-[80%] w-auto">
                     <div
                       className={`px-4 py-3 rounded-2xl ${
                         message.type === "user"
@@ -597,8 +595,9 @@ const ChatUI = () => {
             <div className="w-8 h-1 rounded-full bg-gray-300" />
           </div>
 
-          <div className="p-6 pt-2 flex gap-3 items-end">
-            <div className="flex-1 bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-purple-500 transition-colors">
+          {/* Wrap the textarea div in a relative container */}
+          <div className="p-3 flex-1 relative">
+            <div className="bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-purple-500 transition-colors">
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -609,15 +608,27 @@ const ChatUI = () => {
                 disabled={isLoading}
               />
             </div>
+
+            {/* Mobile-only overlaid send button */}
             <button
               onClick={handleSend}
               disabled={!inputValue.trim() || isLoading}
-              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 font-medium shadow-lg shadow-purple-500/30"
+              className="absolute bottom-5 right-5 opacity-70 w-9 h-9 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
             >
               <Send className="w-4 h-4" />
-              Send
             </button>
           </div>
+
+          {/* Desktop-only full button */}
+          {/* <button
+            onClick={handleSend}
+            disabled={!inputValue.trim() || isLoading}
+            className="hidden sm:flex px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all items-center gap-2 font-medium shadow-lg shadow-purple-500/30"
+          >
+            <Send className="w-4 h-4" />
+            Send
+          </button> */}
+
         </div>
       </div>
     </div>
