@@ -488,7 +488,7 @@ const ChatUI = () => {
                 ) : (
                   // Normal Message Display
                   <div
-                    className={`${message.type === "user" ? "max-w-[70%]" : "max-w-[70%]"} w-auto`}
+                    className="max-w-[85%] sm:max-w-[70%] w-auto"
                   >
                     <div
                       className={`px-4 py-3 rounded-2xl ${
